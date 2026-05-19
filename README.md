@@ -49,7 +49,7 @@ mlw/
 │
 ├── eda.py                         ← Exploratory data analysis
 ├── experiments_log.md             ← Full experiment log
-└── references_IEEE.md             ← References in IEEE format
+└── references.txt             ← References in IEEE format
 ```
 
 ---
