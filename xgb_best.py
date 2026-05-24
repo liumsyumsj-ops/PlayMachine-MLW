@@ -1,9 +1,9 @@
 """
-xgb_best.py — XGBoost 模型
-===========================
-特征：ct9 特征集 + one-hot 编码类别特征
-训练：GroupKFold(5折) CV + holdout 早停 + 全量重训
-参数：n_estimators=1000, lr=0.05, max_depth=6, subsample=0.8, colsample=0.8
+xgb_best.py — XGBoost Model
+=============================
+Features: ct9 feature set + one-hot encoded categorical features
+Training: GroupKFold 5-fold CV + holdout early stopping + full retraining
+Parameters: n_estimators=1000, lr=0.05, max_depth=6, subsample=0.8, colsample=0.8
 """
 
 import pandas as pd
@@ -13,21 +13,21 @@ from sklearn.model_selection import train_test_split, GroupKFold
 from sklearn.metrics import accuracy_score
 from scipy.stats import pearsonr
 
-from preprocessing_shared import load_and_preprocess
+from preprocessing import load_and_preprocess
 from catboost_features import make_catboost_data
 
 RANDOM_SEED = 42
 TRAIN_PATH  = "spaceship-titanic/train.csv"
 TEST_PATH   = "spaceship-titanic/test.csv"
 
-# ── 数据 ──────────────────────────────────────────────────────
+# ── Data ──────────────────────────────────────────────────────
 base_train, base_test, groups = load_and_preprocess(TRAIN_PATH, TEST_PATH)
 X_raw, y, X_test_raw, cat_features = make_catboost_data(base_train, base_test)
 
 X_enc      = pd.get_dummies(X_raw,      columns=cat_features)
 X_test_enc = pd.get_dummies(X_test_raw, columns=cat_features)
 X_test_enc = X_test_enc.reindex(columns=X_enc.columns, fill_value=0)
-print(f"特征数（one-hot 后）: {X_enc.shape[1]}")
+print(f"Number of features after one-hot encoding: {X_enc.shape[1]}")
 
 XGB_PARAMS = dict(
     n_estimators     = 1000,
@@ -62,12 +62,12 @@ fold_scores = np.array(fold_scores)
 print(f"\nXGB GroupKFold CV : {fold_scores.mean():.4f} ± {fold_scores.std():.4f}")
 np.save("oof_xgb.npy", oof_proba)
 
-oof_ct9 = np.load("oof_ct9.npy")
+oof_ct9 = np.load("oof_ct_v2.npy")
 r, _ = pearsonr(oof_proba, oof_ct9)
-print(f"XGB vs CT 相关性  : {r:.4f}")
+print(f"XGB vs CT correlation: {r:.4f}")
 
-# ── 全量重训（holdout 早停 → 固定 iter）─────────────────────
-print("\n--- 全量重训 (seed=42) ---")
+# ── Full retraining: holdout early stopping -> fixed iteration ──
+print("\n--- Full retraining (seed=42) ---")
 X_tr, X_val, y_tr, y_val = train_test_split(
     X_enc, y, test_size=0.2, random_state=RANDOM_SEED, stratify=y)
 cb = xgb.XGBClassifier(**XGB_PARAMS, early_stopping_rounds=50)
@@ -79,12 +79,12 @@ print(f"Holdout val acc: {val_acc:.4f}, best_iter: {best_iter}")
 m_final = xgb.XGBClassifier(**{**XGB_PARAMS, 'n_estimators': best_iter})
 m_final.fit(X_enc, y)
 
-# ── 预测 ──────────────────────────────────────────────────────
+# ── Prediction ─────────────────────────────────────────────────
 test_proba = m_final.predict_proba(X_test_enc)[:, 1]
 np.save("test_xgb.npy", test_proba)
 
-print(f"\n====== xgb_best 完成 ======")
+print(f"\n====== xgb_best completed ======")
 print(f"GroupKFold CV : {fold_scores.mean():.4f} ± {fold_scores.std():.4f}")
 print(f"Holdout val   : {val_acc:.4f}, best_iter={best_iter}")
-print(f"XGB vs CT 相关性: {r:.4f}")
+print(f"XGB vs CT correlation: {r:.4f}")
 print(f"Saved: oof_xgb.npy, test_xgb.npy")
