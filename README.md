@@ -30,9 +30,10 @@ mlw/
 ├── Single-model scripts
 │   ├── KNN.py                     ← KNN single-model training and submission
 │   ├── svm.py                     ← SVM single-model training and submission
-│   ├── random_forest3(2).py       ← Random Forest single-model training and submission
+│   ├── random_forest.py       ← Random Forest single-model training and submission
 │   ├── mlp_1.4.py                 ← MLP single-model training and submission (PyTorch, Optuna-tuned)
-│   └── LightGBM(1).py             ← LightGBM single-model training and submission
+│   ├── xgb_best.py                ← XGBoost-specific: single-model training and submission
+│   └── LightGBM.py             ← LightGBM single-model training and submission
 │
 ├── Ensemble pipeline
 │   ├── ct_v2.py                   ← Step 1: Train the CatBoost model and generate OOF + test probabilities
