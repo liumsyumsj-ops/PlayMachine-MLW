@@ -17,47 +17,98 @@ mlw/
 │   ├── test.csv                   ← Test data
 │   └── submission_final.csv       ← Final submission file (LB 0.81786)
 │
-├── preprocessing.py               ← Shared data preprocessing used by all models
-│
-├── Single-model feature engineering
-│   ├── knn_features.py            ← KNN-specific: OHE + StandardScaler + PCA
-│   ├── svm_features.py            ← SVM-specific: LabelEncoder + StandardScaler + SelectKBest
-│   ├── rf_features.py             ← RF-specific: CabinRegion + SurnameFreq + OHE
-│   ├── mlp_features.py            ← MLP-specific: LabelEncoder for Embedding + StandardScaler
-│   ├── lgb_features.py            ← LightGBM-specific: OHE reused from the RF-style pipeline
-│   └── catboost_features.py       ← Feature engineering for CatBoost and ensemble MLP
+├── preprocessing.py               ← Shared preprocessing + encoders (KNN / SVM / RF / MLP)
+├── catboost_features.py           ← CatBoost + ensemble MLP feature layer
+├── lgb_features.py                ← LightGBM feature layer (ensemble)
 │
 ├── Single-model scripts
-│   ├── KNN.py                     ← KNN single-model training and submission
-│   ├── svm.py                     ← SVM single-model training and submission
-│   ├── random_forest.py       ← Random Forest single-model training and submission
-│   ├── mlp_1.4.py                 ← MLP single-model training and submission (PyTorch, Optuna-tuned)
-│   ├── xgb_best.py                ← XGBoost-specific: single-model training and submission
-│   └── LightGBM.py             ← LightGBM single-model training and submission
+│   ├── KNN.py                     ← KNN
+│   ├── svm.py                     ← SVM
+│   ├── random_forest.py           ← Random Forest
+│   ├── ct_v2.py                   ← CatBoost (also feeds ensemble)
+│   └── mlp_1.4.py                 ← MLP PyTorch single model
 │
-├── Ensemble pipeline
-│   ├── ct_v2.py                   ← Step 1: Train the CatBoost model and generate OOF + test probabilities
-│   ├── ct_mlp.py                  ← Step 2: Train the MLP model and generate OOF + test probabilities
-│   ├── lgb_grid_v2.py             ← Step 3: Train the LightGBM model and generate OOF + test probabilities
-│   └── final_submission.py        ← Step 4: Ensemble + post-processing → generate the submission file
+├── Ensemble (training scripts)
+│   ├── ct_mlp.py                  ← sklearn MLP → OOF / test probabilities for ensemble
+│   └── pipeline/train_lgb_ensemble.py  ← LightGBM lgb_base for ensemble
 │
-├── oof_ct_v2.npy                  ← CatBoost OOF predicted probabilities
-├── oof_MLP-wide.npy               ← MLP OOF predicted probabilities
-├── oof_lgb_base.npy               ← LightGBM OOF predicted probabilities
-├── test_ct_v2.npy                 ← CatBoost test-set predicted probabilities
-├── test_mlp.npy                   ← MLP test-set predicted probabilities
-├── test_lgb_base.npy              ← LightGBM test-set predicted probabilities
+├── run_all.py                     ← **Recommended:** all single-model CSVs + final ensemble
+├── pipeline/                      ← Orchestration (see “One-Click Run”)
+│   └── submissions/               ← Collected Kaggle CSVs
 │
-├── eda.py                         ← Exploratory data analysis
-├── experiments_log.md             ← Full experiment log
-└── references.txt             ← References in IEEE format
+├── experiments_log.md             ← Experiment record
+└── references.txt                 ← References (IEEE format)
 ```
+
+---
+
+## One-Click Run (All Submissions)
+
+Run every single model and the final ensemble **without editing** the original training scripts (`KNN.py`, `svm.py`, `random_forest.py`, `ct_v2.py`, `mlp_1.4.py`, etc.). Orchestration lives under `pipeline/`.
+
+### Usage
+
+From the project root:
+
+```bash
+# Full run (includes slow PyTorch MLP single model mlp_1.4.py; ~30–45 min total)
+python3 run_all.py
+
+# Faster smoke test: MLP single model uses sklearn ct_mlp export instead (~15–25 min)
+python3 run_all.py --quick
+```
+
+Recommended Python: Anaconda with `catboost`, `lightgbm`, and `torch` installed. On macOS, if the default `python3` lacks `lightgbm`, use:
+
+```bash
+/opt/anaconda3/bin/python3 run_all.py
+```
+
+Override the interpreter:
+
+```bash
+MLW_PYTHON=/path/to/python3 python3 run_all.py
+```
+
+Equivalent entry point:
+
+```bash
+python3 pipeline/run_all_submissions.py
+```
+
+Run log (optional): `pipeline/run.log` when using `tee pipeline/run.log`.
+
+### Generated Files
+
+All submission CSVs for Kaggle are collected under **`pipeline/submissions/`**:
+
+| Output file | Model / purpose |
+|-------------|-----------------|
+| `pipeline/submissions/submission_knn.csv` | KNN single model |
+| `pipeline/submissions/submission_svm.csv` | SVM single model |
+| `pipeline/submissions/submission_random_forest.csv` | Random Forest single model |
+| `pipeline/submissions/submission_catboost.csv` | CatBoost single model (`ct_v2`) |
+| `pipeline/submissions/submission_mlp.csv` | MLP single model (`mlp_1.4` in full run; sklearn `ct_mlp` if `--quick`) |
+| `pipeline/submissions/submission_final.csv` | Final ensemble (CT 65% + MLP 25% + LGB 9% + post-processing) |
+
+The same final ensemble is also written to:
+
+- **`spaceship-titanic/submission_final.csv`**
+
+Intermediate files used for blending (project root, overwritten each run):
+
+- `oof_ct_v2.npy`, `test_ct_v2.npy`
+- `oof_MLP-wide.npy`, `test_mlp.npy`
+- `oof_lgb_base.npy`, `test_lgb_base.npy`
+- `train_processed.csv`, `test_processed.csv` (for SVM / Random Forest)
+
+More detail: `pipeline/README.md`.
 
 ---
 
 ## Single-Model Descriptions
 
-### KNN (`KNN.py` + `knn_features.py`)
+### KNN (`KNN.py`)
 
 K-Nearest Neighbors is sensitive to feature scale, so standardization and dimensionality reduction are required before training.
 
@@ -74,7 +125,7 @@ python3 KNN.py
 
 ---
 
-### SVM (`svm.py` + `svm_features.py`)
+### SVM (`svm.py`)
 
 Support Vector Machine classifier with an RBF kernel. Since SVM is sensitive to feature scale, standardization is required.
 
@@ -91,7 +142,7 @@ python3 svm.py
 
 ---
 
-### Random Forest (`random_forest3(2).py` + `rf_features.py`)
+### Random Forest (`random_forest.py`)
 
 Random Forest is a tree-based model and is not sensitive to feature scale, so standardization is not required.
 
@@ -103,12 +154,12 @@ Random Forest is a tree-based model and is not sensitive to feature scale, so st
 | Cross-validation | 5-fold GroupKFold grouped by GroupId to prevent family-level leakage |
 
 ```bash
-python3 "random_forest3(2).py"
+python3 random_forest.py
 ```
 
 ---
 
-### MLP (`mlp_1.4.py` + `mlp_features.py`)
+### MLP (`mlp_1.4.py`)
 
 This PyTorch-based Multilayer Perceptron uses Entity Embedding to map categorical features into low-dimensional dense vectors and also includes residual connections.
 
@@ -127,36 +178,22 @@ python3 mlp_1.4.py
 
 ---
 
-### LightGBM Single Model (`LightGBM(1).py` + `lgb_features.py`)
-
-A single LightGBM gradient boosting tree model that reuses RF-style feature encoding.
-
-| Item | Description |
-|------|-------------|
-| Feature encoding | OHE for categorical columns, without StandardScaler |
-| Main parameters | n_estimators=1000, lr=0.01, max_depth=8, num_leaves=64, subsample=0.8 |
-| Cross-validation | 5-fold StratifiedKFold |
-
-```bash
-python3 "LightGBM(1).py"
-```
-
----
-
 ## Ensemble Model Description
 
 ### How to Run
 
-Run the following scripts in order. Each step generates the corresponding `.npy` files:
+**Recommended:** use [One-Click Run](#one-click-run-all-submissions) (`python3 run_all.py`).
+
+Manual ensemble steps (same logic as `pipeline/`):
 
 ```bash
-python3 ct_v2.py           # Around 10-15 minutes
-python3 ct_mlp.py          # Around 5-10 minutes
-python3 lgb_grid_v2.py     # Around 10-15 minutes
-python3 final_submission.py
+python3 ct_v2.py
+python3 ct_mlp.py
+python3 pipeline/train_lgb_ensemble.py
+python3 pipeline/build_final_ensemble.py
 ```
 
-Final output: `spaceship-titanic/submission_final.csv`
+Final output: `pipeline/submissions/submission_final.csv` and `spaceship-titanic/submission_final.csv`
 
 ---
 
@@ -173,7 +210,7 @@ Final output: `spaceship-titanic/submission_final.csv`
 |------|----------------|-----------------|
 | CatBoost (ct_v2) | lr=0.03, depth=6, l2=2, iter=3000 | 65% |
 | MLP (ct_mlp) | See the MLP single-model description | 25% |
-| LightGBM (lgb_grid_v2) | lr=0.05, num_leaves=31, λ=1.0 | 9% |
+| LightGBM (lgb_base) | lr=0.05, num_leaves=31, λ=1.0 | 9% |
 
 All models use **5-fold GroupKFold cross-validation** grouped by GroupId to prevent leakage among passengers from the same family/group.
 
